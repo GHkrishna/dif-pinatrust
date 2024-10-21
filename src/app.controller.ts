@@ -33,7 +33,7 @@ export class AppController {
     console.debug('file controller::', file);
     return this.appService.uploadFile(file);
   }
-  // Get: get file from pinata
+  // Get: get file from pinata (2types: Owned, received access)
 
   /**
    * Utilities
