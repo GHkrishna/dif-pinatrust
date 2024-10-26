@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Post,
+  Query,
   UploadedFile,
   UseInterceptors,
 } from '@nestjs/common';
@@ -33,7 +34,18 @@ export class AppController {
     console.debug('file controller::', file);
     return this.appService.uploadFile(file);
   }
-  // Get: get file from pinata (2types: Owned, received access)
+
+  // Get folder by orgName
+  @Get('/folders/:orgId')
+  async getFolders(@Query('orgId') orgId: string): Promise<object> {
+    return this.appService.getFolders(orgId);
+  }
+
+  // Get files by orgName and folderName
+  @Get('/files/:orgId/:folderName')
+  async getFolder(@Query('orgId') orgId: string, @Query('folderName') folderName: string): Promise<object> {
+    return this.appService.getFilesInFolder(orgId, folderName);
+  }
 
   /**
    * Utilities
