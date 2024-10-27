@@ -1,4 +1,5 @@
 import {
+  Body,
   Controller,
   Get,
   Post,
@@ -8,7 +9,7 @@ import {
 } from '@nestjs/common';
 import { ApiBody, ApiConsumes } from '@nestjs/swagger';
 import { AppService } from './app.service';
-import { FileUploadDto } from './dto/app.dto';
+import { FileUploadDto, ProvideAcessDto } from './dto/app.dto';
 import { FileInterceptor } from '@nestjs/platform-express';
 
 @Controller()
@@ -46,6 +47,17 @@ export class AppController {
   async getFolder(@Query('orgId') orgId: string, @Query('folderName') folderName: string): Promise<object> {
     return this.appService.getFilesInFolder(orgId, folderName);
   }
+
+  // Give access to folder using did
+  @Post('/access')
+  @ApiBody({
+    description: 'Attributes required',
+    type: ProvideAcessDto,
+  })
+  async giveAccessToFolder(@Body() provideAccessDto: ProvideAcessDto): Promise<object> {
+    return this.appService.giveAccessToFolder(provideAccessDto);
+  }
+
 
   /**
    * Utilities
