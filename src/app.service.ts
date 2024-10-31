@@ -117,6 +117,7 @@ export class AppService {
   }
 
   async accessFolder(payload: GetAccessDto) {
+    try {
     // Check folder exists
     if (!await this.folderExists(payload.orgId, payload.folderName))
      throw new NotFoundException(`No such folder:: ${payload.folderName} exist for org`)
@@ -132,10 +133,6 @@ export class AppService {
     // Get payload for verification with connectionId(get Id)
     console.debug('Presenting credential using CREDEBL')
 
-    console.log('this is url: ', verifyCredentialUrl(process.env.CREDEBL_ISSUER_ORGID))
-    console.log('this is getVerificationPayload: ', JSON.stringify(getVerificationPayload(payload), null, 2))
-    console.log('this is headers: ', { headers: getCredeblHeaders(token) })
-    // return
     const verifyPres = await firstValueFrom(await this.httpService.post(verifyCredentialUrl(process.env.CREDEBL_ISSUER_ORGID), getVerificationPayload(payload), { headers: getCredeblHeaders(token) }))
 
     const res: IVerifyPres = verifyPres.data
@@ -143,11 +140,29 @@ export class AppService {
     // Timeout
     await new Promise((resolve) => setTimeout(resolve, 5000));
 
-
-    // console.log('this is url1: ', getVerifiedProofRecordUrl(process.env.CREDEBL_ISSUER_ORGID, res.data.id))
-    // console.log('this is headers1: ', { headers: getCredeblHeaders(token) })
     // Get verified proof record by id
-    const resP = await firstValueFrom( await this.httpService.get(getVerifiedProofRecordUrl(process.env.CREDEBL_ISSUER_ORGID, res.data.id), { headers: getCredeblHeaders(token) }))
+    let resP: {
+      status: number;data: IVerifiedProofRecord
+};
+    for (let i =0; i<5; i++) {
+      try {
+        resP = await firstValueFrom( await this.httpService.get(getVerifiedProofRecordUrl(process.env.CREDEBL_ISSUER_ORGID, res.data.id), { headers: getCredeblHeaders(token) }))
+
+        // Check if resP meets your required condition
+        if (resP && resP.status == 200) {  // Replace `someCondition` with your success condition
+          console.log('Required result achieved');
+          break;
+        }
+      } catch (err) {
+        if(i == 4) {
+          console.log(`Problem getting proofRequest. Tried ${i+1}/5 times`)
+          throw new HttpException('error retreiving presentation from CREDEBL. Probably you have not shared proof request', 401)
+        }
+        console.log(`You have not yet shared proof. Trying ${i+1}/5 times`)
+        await new Promise(resolve => setTimeout(resolve, 10000));
+        continue
+      }
+    }
     const verifiedRecord: IVerifiedProofRecord = resP.data
     // Check if verified proof and accessing folders is same
     if (verifiedRecord.data[0]['First Name'] !== payload.firstName)
@@ -167,10 +182,18 @@ export class AppService {
     //   throw new UnauthorizedException(`Your credential is expired at  ${verifiedRecord.data[0]['Expires at']}`)
     // Once verified, check if folderName, orgName and other validations are staisfied
 
-    console.debug(`Presentation verified successfully, returning files inside folder ${payload.folderName}`)
-    const filesResult = await this.getFilesInFolder(payload.orgId, payload.folderName)
+    console.debug(`Presentation verified successfully`)
 
     return {result: 'Successfully verified'}
+  } catch (err) {
+    console.log('Error getting files in folder by orgId and folderName', JSON.stringify(err));
+    const customError = {
+      message: err.response.message || 'Internal Server Error',
+      error: err.response.err? err.response.err: {},
+      statusCode: err.response.statusCode? err.response.statusCode : 500,
+    };
+    throw new HttpException(customError, customError.statusCode);
+  }
   }
 
   async folderExists(orgId: string, folderName: string): Promise<boolean> {
