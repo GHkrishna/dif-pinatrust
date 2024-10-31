@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  Param,
   Post,
   Query,
   UploadedFile,
@@ -38,13 +39,13 @@ export class AppController {
 
   // Get folder by orgName
   @Get('/folders/:orgId')
-  async getFolders(@Query('orgId') orgId: string): Promise<object> {
+  async getFolders(@Param('orgId') orgId: string): Promise<object> {
     return this.appService.getFolders(orgId);
   }
 
   // Get files by orgName and folderName
   @Get('/files/:orgId/:folderName')
-  async getFolder(@Query('orgId') orgId: string, @Query('folderName') folderName: string): Promise<object> {
+  async getFolder(@Param('orgId') orgId: string, @Param('folderName') folderName: string): Promise<object> {
     return this.appService.getFilesInFolder(orgId, folderName);
   }
 
