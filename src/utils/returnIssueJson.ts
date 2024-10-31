@@ -46,7 +46,7 @@ export function issueJson(payload: ProvideAcessDto): object {
 
 export const issuCredentialUrl = (CredeblOrgId: string) => `https://devapi.credebl.id/orgs/${CredeblOrgId}/credentials/oob/email?credentialType=jsonld`
 
-export const issueCredHeaders = (token: string): object => {
+export const getCredeblHeaders = (token: string): object => {
   return {
     'Accept': 'application/json',
     'Authorization': `Bearer ${token}`

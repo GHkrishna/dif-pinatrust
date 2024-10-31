@@ -1,14 +1,15 @@
-import { HttpException, Inject, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
+import { HttpException, Inject, Injectable, InternalServerErrorException, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { PinataSDK, UploadOptions } from 'pinata';
 import { File } from '@web-std/file';
-import { ProvideAcessDto } from './dto/app.dto';
+import { GetAccessDto, ProvideAcessDto } from './dto/app.dto';
 import { getToken } from './utils/issuerToken';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Cache } from 'cache-manager';
-import { issuCredentialUrl, issueCredHeaders, issueJson } from './utils/returnIssueJson';
+import { issuCredentialUrl, getCredeblHeaders, issueJson } from './utils/returnIssueJson';
 import { firstValueFrom } from 'rxjs';
-import { IIssuedCred } from './interfaces/app';
+import { IIssuedCred, IVerifiedProofRecord, IVerifyPres } from './interfaces/app';
+import { getVerificationPayload, getVerifiedProofRecordUrl, verifyCredentialUrl } from './utils/returnVerificationJson';
 
 @Injectable()
 export class AppService {
@@ -96,7 +97,7 @@ export class AppService {
       console.debug('getting access token to access credebl')
 
       console.debug('Issuing credential using CREDEBL')
-      const issuedCred = await firstValueFrom( await this.httpService.post(issuCredentialUrl(process.env.CREDEBL_ISSUER_ORGID), await issueJson(payload), { headers: issueCredHeaders(token) }))
+      const issuedCred = await firstValueFrom( await this.httpService.post(issuCredentialUrl(process.env.CREDEBL_ISSUER_ORGID), await issueJson(payload), { headers: getCredeblHeaders(token) }))
       const res: IIssuedCred = issuedCred.data
 
       if (!(res.statusCode === 201))
@@ -113,6 +114,63 @@ export class AppService {
       };
       throw new HttpException(customError, customError.statusCode);
     }
+  }
+
+  async accessFolder(payload: GetAccessDto) {
+    // Check folder exists
+    if (!await this.folderExists(payload.orgId, payload.folderName))
+     throw new NotFoundException(`No such folder:: ${payload.folderName} exist for org`)
+    console.debug('Folder exists with folderName::', `${payload.orgId}-${payload.folderName}`)
+    console.debug('getting access token to access credebl')
+    // folder exist, send presentation req
+
+    // GEt token
+    const token = await this.getToken()
+    if (!token)
+     throw new NotFoundException('Error getting token to access CREDEBL')
+    console.debug('getting access token to access credebl')
+    // Get payload for verification with connectionId(get Id)
+    console.debug('Presenting credential using CREDEBL')
+
+    console.log('this is url: ', verifyCredentialUrl(process.env.CREDEBL_ISSUER_ORGID))
+    console.log('this is getVerificationPayload: ', JSON.stringify(getVerificationPayload(payload), null, 2))
+    console.log('this is headers: ', { headers: getCredeblHeaders(token) })
+    // return
+    const verifyPres = await firstValueFrom(await this.httpService.post(verifyCredentialUrl(process.env.CREDEBL_ISSUER_ORGID), getVerificationPayload(payload), { headers: getCredeblHeaders(token) }))
+
+    const res: IVerifyPres = verifyPres.data
+
+    // Timeout
+    await new Promise((resolve) => setTimeout(resolve, 5000));
+
+
+    // console.log('this is url1: ', getVerifiedProofRecordUrl(process.env.CREDEBL_ISSUER_ORGID, res.data.id))
+    // console.log('this is headers1: ', { headers: getCredeblHeaders(token) })
+    // Get verified proof record by id
+    const resP = await firstValueFrom( await this.httpService.get(getVerifiedProofRecordUrl(process.env.CREDEBL_ISSUER_ORGID, res.data.id), { headers: getCredeblHeaders(token) }))
+    const verifiedRecord: IVerifiedProofRecord = resP.data
+    // Check if verified proof and accessing folders is same
+    if (verifiedRecord.data[0]['First Name'] !== payload.firstName)
+      throw new UnauthorizedException(`Your provided First Name::${payload.firstName} and presented first name:: ${verifiedRecord.data[0]['First Name']} does not match`)
+
+    if (verifiedRecord.data[1]['Last Name'] !== payload.lastName)
+      throw new UnauthorizedException(`Your provided Last Name::${payload.lastName} and presented last name:: ${verifiedRecord.data[0]['Last Name']} does not match`)
+
+    if (verifiedRecord.data[2]['Folder Name'] !== payload.folderName)
+      throw new UnauthorizedException(`You do not have access to the folder ${payload.folderName}`)
+
+    if ((verifiedRecord.data[3]['Expires at'] !== '-') && (verifiedRecord.data[0]['Expires at'] <= Date.now().toString()))
+      throw new UnauthorizedException(`Your credential is expired at  ${verifiedRecord.data[0]['Expires at']}`)
+
+    // To do: Can add verification based on did
+    // if ((verifiedRecord.data[0]['Expires at'] !== '-') && (verifiedRecord.data[0]['Expires at'] <= Date.now().toString()))
+    //   throw new UnauthorizedException(`Your credential is expired at  ${verifiedRecord.data[0]['Expires at']}`)
+    // Once verified, check if folderName, orgName and other validations are staisfied
+
+    console.debug(`Presentation verified successfully, returning files inside folder ${payload.folderName}`)
+    const filesResult = await this.getFilesInFolder(payload.orgId, payload.folderName)
+
+    return {result: 'Successfully verified'}
   }
 
   async folderExists(orgId: string, folderName: string): Promise<boolean> {
