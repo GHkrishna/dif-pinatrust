@@ -9,7 +9,7 @@ import {
 } from '@nestjs/common';
 import { ApiBody, ApiConsumes } from '@nestjs/swagger';
 import { AppService } from './app.service';
-import { FileUploadDto, ProvideAcessDto } from './dto/app.dto';
+import { FileUploadDto, GetAccessDto, ProvideAcessDto } from './dto/app.dto';
 import { FileInterceptor } from '@nestjs/platform-express';
 
 @Controller()
@@ -58,6 +58,14 @@ export class AppController {
     return this.appService.giveAccessToFolder(provideAccessDto);
   }
 
+  @Post('/access-folder')
+  @ApiBody({
+    description: 'Attributes required to get access to folder for a employee',
+    type: GetAccessDto
+  })
+  async accessFolder(@Body() getAccessDto: GetAccessDto): Promise<object> {
+    return this.appService.accessFolder(getAccessDto)
+  }
 
   /**
    * Utilities

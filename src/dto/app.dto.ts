@@ -1,4 +1,4 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional, OmitType } from '@nestjs/swagger';
 import { IsEmail, IsNotEmpty, IsString } from 'class-validator';
 
 export class FileUploadDto {
@@ -50,4 +50,10 @@ export class ProvideAcessDto {
   @ApiPropertyOptional({example: 'true'})
   @IsString()
   admin: string = 'false'
+}
+
+export class GetAccessDto extends OmitType(ProvideAcessDto, ['admin'] as const) {
+  @ApiPropertyOptional({example: '0f4fce2b-1ebf-4d27-817a-dfffe53be3d9'})
+  @IsString()
+  connectionId?: string
 }
